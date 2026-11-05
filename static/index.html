@@ -703,13 +703,22 @@ function markBadZ(m){document.querySelectorAll("#zf .bad").forEach(function(x){x
 function roCard(c){return'<div class="ro"><div class="ph"><div><b>LOTNICZE POGOTOWIE RATUNKOWE</b><span>KARTA ZLECENIA TRANSPORTU LOTNICZEGO</span></div><img src="'+logoSrc()+'"></div>'
 +ZK.map(function(sc){return'<div class="ps">'+(sc.t?"<h4>"+esc(sc.t)+"</h4>":"")+'<div class="pf">'+sc.f.map(function(f){var v=c[f[0]]||"";if(f[2]==="date"&&v)v=v.split("-").reverse().join(".");return'<div class="pi'+(f[2]==="area"?" w":"")+'"><span class="l">'+esc(f[1])+'</span><span class="v">'+esc(v)+"</span></div>"}).join("")+"</div></div>"}).join("")+"</div>"}
 function zText(o){var c=o.card||{},t="KARTA ZLECENIA TRANSPORTU LOTNICZEGO\nZespół: "+o.teamName+" · Status: "+o.status;ZK.forEach(function(sc){var L=[];sc.f.forEach(function(f){var v=c[f[0]];if(v)L.push(f[1].replace(/:$/,"")+": "+v)});if(L.length)t+="\n\n"+(sc.t||"")+"\n"+L.join("\n")});return t}
+var TEAM_NAME="Ratownik 6";
+function crewKeysOf(c){c=c||{};var L=[];[c.pilot,c.rat,c.lek].forEach(function(n){var k=ukey(n);if(k&&L.indexOf(k)<0)L.push(k)});return L}
+function mergeTeams(raw){var list=raw.slice().sort(function(a,b){return (b.upd||0)-(a.upd||0)}),G=[];
+list.forEach(function(t){var ks=crewKeysOf(t.crew),g=null;for(var i=0;i<G.length;i++){if(G[i].ks.some(function(k){return ks.indexOf(k)>=0})){g=G[i];break}}
+if(!g){G.push({rep:Object.assign({},t,{crew:Object.assign({},t.crew)}),ks:ks.slice()});return}
+var c=g.rep.crew,x=t.crew||{};["pilot","rat","lek","baza"].forEach(function(f){if(!c[f]&&x[f])c[f]=x[f]});
+ks.forEach(function(k){if(g.ks.indexOf(k)<0)g.ks.push(k)});
+if(t.status==="Na zadaniu"&&g.rep.status!=="Na zadaniu"){g.rep.status="Na zadaniu";g.rep.since=t.since}});
+return G.map(function(g){return g.rep})}
 function pubTeamSoon(){clearTimeout(pubT);pubT=setTimeout(pubTeam,400)}
 function pubTeam(){if(!db||!uidC||!sess)return;var a=act();try{if(!a){if(!canSend())db.doc("teams/"+uidC).delete().catch(function(){});return}
 var m=onMission(a);db.doc("teams/"+uidC).set({uid:uidC,crew:a.crew,status:m?"Na zadaniu":a.status.n,since:m?a.missions[a.missions.length-1].out:a.status.t,start:a.start,chk:chkReady(a),upd:Date.now(),by:sess.name}).catch(function(){})}catch(e){}}
 function stopZ(){zU.forEach(function(f){try{f()}catch(e){}});zU=[];teams=[];orders={};zTeam=null;karty={};crewOn=false}
 function ordH(){var first=true;return function(sn){var fresh=0;sn.docs.forEach(function(d){var o=d.data();if(!o||!o.id)return;if(!canSend()&&!canSee(o.crewKeys))return;var isNew=!orders[o.id];orders[o.id]=o;if(isNew&&!first&&o.status==="Nowe"&&!canSend())fresh++});first=false;if(fresh){toast("Nowe zlecenie transportu lotniczego");logEv("Zlecenie","Odebrano nowe zlecenie ("+fresh+")")}drawZ();drawZNav()}}
 function startZ(){stopZ();if(!db||!uidC||!sess)return;var er=function(){};startK();
-if(canSend()){zU.push(db.collection("zlecenia").onSnapshot(ordH(),er));zU.push(db.collection("teams").onSnapshot(function(sn){teams=[];sn.docs.forEach(function(d){var t=d.data();if(t&&t.uid)teams.push(t)});teams.sort(function(a,b){return b.upd-a.upd});drawZ()},er))}
+if(canSend()){zU.push(db.collection("zlecenia").onSnapshot(ordH(),er));zU.push(db.collection("teams").onSnapshot(function(sn){var raw=[];sn.docs.forEach(function(d){var t=d.data();if(t&&t.uid)raw.push(t)});teams=mergeTeams(raw);drawZ()},er))}
 else{zU.push(db.collection("zlecenia").where("team","==",uidC).onSnapshot(ordH(),er));var ks=[];[ukey(sess.name),sess.login].forEach(function(k){if(k&&ks.indexOf(k)<0)ks.push(k)});ks.forEach(function(k){zU.push(db.collection("zlecenia").where("crewKeys","array-contains",k).onSnapshot(ordH(),er))});
 zU.push(db.collection("teams").onSnapshot(function(sn){var on=false;sn.docs.forEach(function(d){var t=d.data()||{},c=t.crew||{};if(t.uid===uidC||ks.indexOf(ukey(c.pilot))>=0||ks.indexOf(ukey(c.rat))>=0||ks.indexOf(ukey(c.lek))>=0)on=true});if(on!==crewOn){crewOn=on;refreshNav()}},er))}}
 function drawZNav(){var l=document.querySelector('#nav a[href="#zlecenia"]');if(!l)return;var n=0;if(sess&&!canSend())Object.keys(orders).forEach(function(k){if(orders[k].status==="Nowe")n++});l.innerHTML="Zlecenia"+(n?' <span class="rq">● '+n+"</span>":"")}
@@ -724,7 +733,7 @@ function drawZ(){if(!sess)return;var snd=canSend();$("zteams").style.display=snd
 if(snd){var h="";if(!db)h='<div class="card"><p class="since" style="margin:0">Wysyłanie zleceń wymaga wspólnej bazy.</p></div>';
 else{var av=teams.filter(function(t){return t.status==="Gotowość"});if(zTeam&&!av.some(function(t){return t.uid===zTeam}))zTeam=null;
 h='<div class="card"><h3>Zespoły · dostępnych: '+av.length+" z "+teams.length+"</h3>"+(teams.length?teams.map(function(t){var ok=t.status==="Gotowość",c=t.crew||{},col=ok?"var(--ok)":t.status==="Na zadaniu"?"var(--re)":"var(--mu)";
-return'<label class="tm'+(ok?"":" off")+'"><input type="radio" name="zteam" value="'+esc(t.uid)+'"'+(ok?"":" disabled")+(zTeam===t.uid?" checked":"")+'><span style="flex:1"><b>'+esc(c.pilot)+"</b>"+(c.baza?" · "+esc(c.baza):"")+'<br><span class="since">Pilot'+(c.rat?", CZaH: "+esc(c.rat):"")+(c.lek?", lekarz: "+esc(c.lek):"")+(t.chk?"":" · checklista niewykonana")+'</span></span><b style="color:'+col+'">'+esc(t.status)+'</b><span class="since">od '+hm(t.since)+"</span></label>"}).join(""):'<div class="empty">Brak zespołów. Zespół pojawi się tutaj po rozpoczęciu dyżuru przez załogę.</div>')+"</div>"}
+return'<label class="tm'+(ok?"":" off")+'"><input type="radio" name="zteam" value="'+esc(t.uid)+'"'+(ok?"":" disabled")+(zTeam===t.uid?" checked":"")+'><span style="flex:1"><b>'+TEAM_NAME+"</b>"+(c.baza?" · "+esc(c.baza):"")+'<br><span class="since">Pilot: '+esc(c.pilot||"–")+(c.rat?", CZaH: "+esc(c.rat):"")+(c.lek?", lekarz: "+esc(c.lek):"")+(t.chk?"":" · checklista niewykonana")+'</span></span><b style="color:'+col+'">'+esc(t.status)+'</b><span class="since">od '+hm(t.since)+"</span></label>"}).join(""):'<div class="empty">Brak zespołów. Zespół pojawi się tutaj po rozpoczęciu dyżuru przez załogę.</div>')+"</div>"}
 $("zteams").innerHTML=h}
 var op={};document.querySelectorAll("#zlist details[open]").forEach(function(d){op[d.dataset.id]=1});
 var L=Object.keys(orders).map(function(k){return orders[k]}).sort(function(a,b){return b.ts-a.ts}).slice(0,50);
@@ -735,7 +744,7 @@ var o=collectZ(),m=missingZ(o);if(!zTeam){toast("Najpierw wybierz zespół");$("
 var t=teams.filter(function(x){return x.uid===zTeam})[0];if(!t||t.status!=="Gotowość"){toast("Zespół nie jest już w gotowości");return}
 if(m.length){markBadZ(m);toast("Brakuje: "+m[0][1].replace(/:$/,"")+(m.length>1?" i "+(m.length-1)+" więcej":""));return}
 var cr=t.crew||{},keys=[];[cr.pilot,cr.rat,cr.lek].forEach(function(n){var k=ukey(n);if(k&&keys.indexOf(k)<0)keys.push(k)});
-var id=Date.now()+"-"+Math.random().toString(36).slice(2,7),rec={id:id,ts:Date.now(),team:t.uid,teamName:cr.pilot+(cr.baza?" ("+cr.baza+")":""),crewKeys:keys,status:"Nowe",card:o,by:sess.login,byName:sess.name};
+var id=Date.now()+"-"+Math.random().toString(36).slice(2,7),rec={id:id,ts:Date.now(),team:t.uid,teamName:TEAM_NAME+(cr.baza?" ("+cr.baza+")":""),crewKeys:keys,status:"Nowe",card:o,by:sess.login,byName:sess.name};
 try{await db.doc("zlecenia/"+id).set(rec)}catch(x){toast("Nie udało się wysłać zlecenia");return}
 orders[id]=rec;logEv("Zlecenie","Wysłano do zespołu "+rec.teamName+": "+o.typ+", "+(o.p_miasto||"–")+" → "+(o.d_miasto||"–"));defZ();zTeam=null;drawZ();toast("Zlecenie wysłane do zespołu")}
 $("zlist").onclick=async function(e){var d=e.target.dataset||{};if(!d.oa)return;var o=orders[d.id];if(!o)return;if(d.oa==="cp"){cp(zText(o));return}if(d.oa==="pdf"){pdfZ(o);return}
