@@ -533,8 +533,13 @@ h='<details class="card chk" data-r="'+(ok?1:0)+'" style="margin-bottom:14px"'+(
 +ITEMS.map(function(t,i){var at=a.chk&&a.chk[i];return'<label><input type="checkbox" data-i="'+i+'"'+(at?" checked":"")+'><span style="flex:1">'+esc(t)+'</span><span class="since">'+(at?hm(at):"")+"</span></label>"}).join("")
 +(ok?'<p class="okk">Checklista wykonana. Możesz zgłosić wylot.</p>':'<p style="color:var(--re);font-weight:600;margin:12px 0 0">Wylot jest zablokowany do czasu wykonania całej checklisty.</p>')+"</details>"}
 $("ck").innerHTML=h}
-function drawDz(){var a=act(),h="";
-if(!a){h='<div class="card"><h3>Start dyżuru</h3><p style="margin:0 0 12px;color:var(--mu)">Wpisz skład załogi i rozpocznij dyżur. Od tej chwili statusy i misje są zapisywane z godziną.</p><form class="cols kg" id="crew" onsubmit="return false"><label><span>Pilot <span class="rq">*</span></span>'+cs("cp","Pilot")+'</label><label><span>CZaH</span>'+cs("cr","CZaH")+'</label><label><span>Lekarz</span>'+cs("cl","Lekarz")+'</label><label><span>Baza</span><input id="cb" value="Kraków-Kokotów" readonly></label></form><div class="row" style="margin:14px 0 0"><button class="p" id="go">Start dyżuru</button></div></div>'}
+var liveTeams=[],dzS="";
+function otherDuty(){var L=liveTeams.filter(function(t){return t&&t.uid&&t.uid!==uidC&&!inCrew(t)});return L.length?L.sort(function(a,b){return (b.upd||0)-(a.upd||0)})[0]:null}
+function dzSig(){var od=otherDuty(),k=od?od.uid+"|"+JSON.stringify(od.crew||{}):"";if(k!==dzS){dzS=k;if(sess&&!act()&&curView()==="dyzur")drawDz()}}
+function dutyBlockCard(od){var c=od.crew||{},adm=sess&&sess.role==="Administrator";return'<div class="card"><h3>Dyżur już trwa</h3><p style="margin:0 0 10px;color:var(--mu)">Dyżur został już utworzony — nie można rozpocząć drugiego. Zlecenia otrzymują osoby wpisane w skład tego dyżuru.</p><ul class="mini"><li><span>Zespół</span><b>'+TEAM_NAME+'</b></li><li><span>Pilot</span><b>'+esc(c.pilot||"–")+'</b></li><li><span>CZaH</span><b>'+esc(c.rat||"–")+'</b></li><li><span>Lekarz</span><b>'+esc(c.lek||"–")+'</b></li><li><span>Baza</span><b>'+esc(c.baza||"–")+'</b></li><li><span>Rozpoczął</span><b>'+esc(od.by||"–")+(od.start?" · "+dt(od.start):"")+'</b></li></ul>'+(adm?'<div class="row" style="margin:12px 0 0"><button class="p" id="endother" data-u="'+esc(od.uid)+'">Zakończ ten dyżur (administrator)</button></div>':"")+'</div>'}
+function drawDz(){var a=act(),h="",od=a?null:otherDuty();
+if(od){h=dutyBlockCard(od)}
+else if(!a){h='<div class="card"><h3>Start dyżuru</h3><p style="margin:0 0 12px;color:var(--mu)">Wpisz skład załogi i rozpocznij dyżur. Od tej chwili statusy i misje są zapisywane z godziną.</p><form class="cols kg" id="crew" onsubmit="return false"><label><span>Pilot <span class="rq">*</span></span>'+cs("cp","Pilot")+'</label><label><span>CZaH</span>'+cs("cr","CZaH")+'</label><label><span>Lekarz</span>'+cs("cl","Lekarz")+'</label><label><span>Baza</span><input id="cb" value="Kraków-Kokotów" readonly></label></form><div class="row" style="margin:14px 0 0"><button class="p" id="go">Start dyżuru</button></div></div>'}
 else{var now=Date.now(),mis=onMission(a),s=a.status,cr=a.crew,tot=msum(a,now);
 h='<div class="grid"><div class="card"><h3>Status załogi</h3><div class="big st-'+(mis?"z":s.n==="Gotowość"?"g":"p")+'">'+esc(s.n)+'</div><div class="since">Od '+hm(s.t)+" · "+fms(now-s.t)+'</div>'
 +'<div class="status" id="st"><button data-s="Gotowość" class="'+(s.n==="Gotowość"?"on":"")+'"'+(mis?" disabled":"")+'>Gotowość</button><button data-s="Poza gotowością" class="'+(s.n==="Poza gotowością"?"on":"")+'"'+(mis?" disabled":"")+'>Poza gotowością</button></div>'
@@ -545,9 +550,10 @@ h='<div class="grid"><div class="card"><h3>Status załogi</h3><div class="big st
 $("dz").innerHTML=h}
 function logT(a,end){return'<ul class="mini">'+rows(a,end).reverse().map(function(r){return"<li><span><b>"+hm(r.t)+"</b> · "+esc(r.n)+"</span><span>"+fms(r.ms)+"</span></li>"}).join("")+"</ul>"}
 function misT(a,end){if(!a.missions.length)return'<div class="empty">Brak misji. Użyj przycisku Wylot.</div>';return'<ul class="mini">'+a.missions.map(function(m,i){return"<li><span><b>#"+(i+1)+"</b> "+hm(m.out)+" → "+(m.in?hm(m.in):"w trakcie")+"</span><b>"+fms((m.in||end)-m.out)+"</b></li>"}).reverse().join("")+"</ul>"}
-$("dz").onclick=function(e){var id=e.target.id,a=act(),now=Date.now();
-if(id==="go"){var c={pilot:pick("cp","Pilot"),rat:pick("cr","CZaH"),lek:pick("cl","Lekarz"),baza:"Kraków-Kokotów"};var bad=c.pilot===null?"cp":c.rat===null?"cr":c.lek===null?"cl":!c.pilot?"cp":"";if(bad){toast(bad==="cp"&&c.pilot===""?"Wybierz pilota, aby rozpocząć dyżur":"Wpisane nazwisko nie pasuje do żadnego konta z tą rolą");$(bad).focus();return}
-var n={start:now,crew:c,status:null,log:[],missions:[],chk:{},chkDone:null};setSt(n,"Gotowość",now);wr("lpr-akt",n);wr("lpr-crew",{p:c.pilot,r:c.rat,l:c.lek,b:c.baza});logEv("Start dyżuru","Pilot: "+c.pilot+(c.rat?", CZaH: "+c.rat:"")+(c.lek?", lekarz: "+c.lek:"")+(c.baza?", baza: "+c.baza:""));defKz();drawDz();drawNav();drawCk();toast("Dyżur rozpoczęty. Wykonaj checklistę przed lotem");window.scrollTo(0,0);return}
+$("dz").onclick=async function(e){var id=e.target.id,a=act(),now=Date.now();
+if(id==="endother"&&sess&&sess.role==="Administrator"){if(!confirm("Zakończyć trwający dyżur? Zespół zniknie z listy."))return;var u=e.target.dataset.u;try{await db.doc("teams/"+u).delete();liveTeams=liveTeams.filter(function(t){return t.uid!==u});teams=teams.filter(function(t){return t.uid!==u});dzS="";drawDz();toast("Dyżur zakończony")}catch(x){toast("Nie udało się zakończyć dyżuru")}return}
+if(id==="go"){if(otherDuty()){toast("Dyżur już trwa — nie można utworzyć drugiego");drawDz();return}var c={pilot:pick("cp","Pilot"),rat:pick("cr","CZaH"),lek:pick("cl","Lekarz"),baza:"Kraków-Kokotów"};var bad=c.pilot===null?"cp":c.rat===null?"cr":c.lek===null?"cl":!c.pilot?"cp":"";if(bad){toast(bad==="cp"&&c.pilot===""?"Wybierz pilota, aby rozpocząć dyżur":"Wpisane nazwisko nie pasuje do żadnego konta z tą rolą");$(bad).focus();return}
+var n={start:now,crew:c,by:sess.name,status:null,log:[],missions:[],chk:{},chkDone:null};setSt(n,"Gotowość",now);wr("lpr-akt",n);wr("lpr-crew",{p:c.pilot,r:c.rat,l:c.lek,b:c.baza});logEv("Start dyżuru","Pilot: "+c.pilot+(c.rat?", CZaH: "+c.rat:"")+(c.lek?", lekarz: "+c.lek:"")+(c.baza?", baza: "+c.baza:""));defKz();drawDz();drawNav();drawCk();toast("Dyżur rozpoczęty. Wykonaj checklistę przed lotem");window.scrollTo(0,0);return}
 if(!a)return;
 if(e.target.dataset&&e.target.dataset.s&&!onMission(a)){if(a.status.n!==e.target.dataset.s){setSt(a,e.target.dataset.s,now);wr("lpr-akt",a);logEv("Zmiana statusu",e.target.dataset.s);drawDz()}return}
 if(id==="gock"){window.scrollTo(0,0);return}
@@ -557,10 +563,10 @@ if(id==="newkz"){defKz();location.hash="#kzd";return}
 if(id==="fin"){if(onMission(a)){toast("Najpierw zapisz powrót z misji");return}confirmFin=1;setTimeout(function(){if(confirmFin){confirmFin=0;drawDz()}},8000);drawDz();return}
 if(id==="fin0"){confirmFin=0;drawDz();return}
 if(id==="fin2"){confirmFin=0;if(onMission(a)){drawDz();toast("Najpierw zapisz powrót z misji");return}finish(a,now)}};
-async function finish(a,now){logEv("Koniec dyżuru","Czas dyżuru: "+fms(now-a.start)+" · misje: "+a.missions.length);var d={start:a.start,end:now,crew:a.crew,log:a.log,missions:a.missions,chkDone:a.chkDone||null,chk:ITEMS.map(function(t,i){return{t:t,at:(a.chk&&a.chk[i])||null}})};
-var arch=rd("lpr-arch",[]);arch.push(d);wr("lpr-arch",arch.slice(-30));wr("lpr-akt",null);drawDz();drawDn();
+async function finish(a,now,remote){logEv("Koniec dyżuru","Czas dyżuru: "+fms(now-a.start)+" · misje: "+a.missions.length);var d={start:a.start,end:now,crew:a.crew,log:a.log,missions:a.missions,chkDone:a.chkDone||null,chk:ITEMS.map(function(t,i){return{t:t,at:(a.chk&&a.chk[i])||null}})};
+var arch=rd("lpr-arch",[]);arch.push(d);wr("lpr-arch",arch.slice(-30));wr("lpr-ended",a.start);wr("lpr-akt",null);drawDz();drawDn();
 var uid=uidC;
-if(db&&uid){try{var ref=db.doc("dyzury/"+uid),sn=await ref.get(),it=sn.exists?([].concat((sn.data()||{}).items||[])):[];it.push(d);await ref.set({items:it.slice(-100)});toast("Dyżur zakończony i zapisany w Dzienniku")}catch(e){toast("Dyżur zakończony. Zapis w Dzienniku administratora nie powiódł się")}}else toast("Dyżur zakończony. Zapisano tylko na tym urządzeniu")}
+if(db&&uid){try{var ref=db.doc("dyzury/"+uid),sn=await ref.get(),it=sn.exists?([].concat((sn.data()||{}).items||[])):[];it.push(d);await ref.set({items:it.slice(-100)});toast("Dyżur zakończony i zapisany w Dzienniku")}catch(e){toast("Dyżur zakończony. Zapis w Dzienniku administratora nie powiódł się")}}else toast("Dyżur zakończony. Zapisano tylko na tym urządzeniu");if(remote)toast("Dyżur zakończony przez innego członka załogi. Zapisano w Twoim Dzienniku")}
 setInterval(function(){var h=location.hash;if((h===""||h==="#dyzur")&&act()&&!document.activeElement.closest("#dz form"))drawDz()},1000);
 /* ---- dziennik ---- */
 function people(L){var P={};L.forEach(function(d){var ms=msum({missions:d.missions},d.end),n=d.missions.length,dur=d.end-d.start;[d.crew.pilot,d.crew.rat,d.crew.lek].forEach(function(nm){if(!nm)return;var k=nm.trim().toLowerCase(),p=P[k]||(P[k]={n:nm.trim(),d:0,m:0,ms:0,dur:0});p.d++;p.m+=n;p.ms+=ms;p.dur+=dur})});return Object.keys(P).map(function(k){return P[k]}).sort(function(a,b){return b.ms-a.ms})}
@@ -713,14 +719,28 @@ ks.forEach(function(k){if(g.ks.indexOf(k)<0)g.ks.push(k)});
 if(t.status==="Na zadaniu"&&g.rep.status!=="Na zadaniu"){g.rep.status="Na zadaniu";g.rep.since=t.since}});
 return G.map(function(g){return g.rep})}
 function pubTeamSoon(){clearTimeout(pubT);pubT=setTimeout(pubTeam,400)}
-function pubTeam(){if(!db||!uidC||!sess)return;var a=act();try{if(!a){if(!canSend())db.doc("teams/"+uidC).delete().catch(function(){});return}
-var m=onMission(a);db.doc("teams/"+uidC).set({uid:uidC,crew:a.crew,status:m?"Na zadaniu":a.status.n,since:m?a.missions[a.missions.length-1].out:a.status.t,start:a.start,chk:chkReady(a),upd:Date.now(),by:sess.name}).catch(function(){})}catch(e){}}
-function stopZ(){zU.forEach(function(f){try{f()}catch(e){}});zU=[];teams=[];orders={};zTeam=null;karty={};crewOn=false}
+var dutyOwner=rd("lpr-duty-owner",null),lastApplied=0,seenDoc=false;
+function inCrew(t){var ks=myKeys();return crewKeysOf(t&&t.crew).some(function(k){return ks.indexOf(k)>=0})}
+function pubTeam(){if(!db||!uidC||!sess)return;var a=act();try{var tid=dutyOwner||uidC;
+if(!a){if(!canSend())db.doc("teams/"+tid).delete().catch(function(){});dutyOwner=null;wr("lpr-duty-owner",null);seenDoc=false;return}
+var m=onMission(a),up=Date.now();lastApplied=up;
+db.doc("teams/"+tid).set({uid:tid,crew:a.crew,status:m?"Na zadaniu":a.status.n,since:m?a.missions[a.missions.length-1].out:a.status.t,start:a.start,chk:chkReady(a),upd:up,by:a.by||sess.name,act:a}).catch(function(){})}catch(e){}}
+/* dyżur jest wspólny: osoby wpisane w skład dostają go automatycznie, zmiany widzi cała załoga */
+function endRemote(a){wr("lpr-ended",a.start);seenDoc=false;dutyOwner=null;wr("lpr-duty-owner",null);finish(a,Date.now(),true)}
+function syncDuty(list){if(!sess||sess.role==="Dyspozytor")return;var a=act(),D=null;
+list.forEach(function(t){if(!t||!t.uid)return;if(t.uid===uidC||inCrew(t)){if(!D||(t.upd||0)>(D.upd||0))D=t}});
+if(D){seenDoc=true;
+if(D.act&&(D.upd||0)>lastApplied&&(a||D.act.start!==rd("lpr-ended",0))){var joined=!a&&D.uid!==uidC;lastApplied=D.upd||0;
+dutyOwner=D.uid===uidC?null:D.uid;wr("lpr-duty-owner",dutyOwner);
+mem["lpr-akt"]=D.act;try{localStorage.setItem("lpr-akt",JSON.stringify(D.act))}catch(e){}
+refreshNav();drawNav();drawCk();drawDz();if(joined)toast("Dołączono do trwającego dyżuru")}}
+else if(a){if(dutyOwner||seenDoc)endRemote(a);else pubTeamSoon()}}
+function stopZ(){zU.forEach(function(f){try{f()}catch(e){}});zU=[];teams=[];liveTeams=[];dzS="";lastApplied=0;seenDoc=false;orders={};zTeam=null;karty={};crewOn=false}
 function ordH(){var first=true;return function(sn){var fresh=0;sn.docs.forEach(function(d){var o=d.data();if(!o||!o.id)return;if(!canSend()&&!canSee(o.crewKeys))return;var isNew=!orders[o.id];orders[o.id]=o;if(isNew&&!first&&o.status==="Nowe"&&!canSend())fresh++});first=false;if(fresh){toast("Nowe zlecenie transportu lotniczego");logEv("Zlecenie","Odebrano nowe zlecenie ("+fresh+")")}drawZ();drawZNav()}}
 function startZ(){stopZ();if(!db||!uidC||!sess)return;var er=function(){};startK();
-if(canSend()){zU.push(db.collection("zlecenia").onSnapshot(ordH(),er));zU.push(db.collection("teams").onSnapshot(function(sn){var raw=[];sn.docs.forEach(function(d){var t=d.data();if(t&&t.uid)raw.push(t)});teams=mergeTeams(raw);drawZ()},er))}
+if(canSend()){zU.push(db.collection("zlecenia").onSnapshot(ordH(),er));zU.push(db.collection("teams").onSnapshot(function(sn){var raw=[];sn.docs.forEach(function(d){var t=d.data();if(t&&t.uid)raw.push(t)});liveTeams=raw;teams=mergeTeams(raw);syncDuty(raw);drawZ();dzSig()},er))}
 else{zU.push(db.collection("zlecenia").where("team","==",uidC).onSnapshot(ordH(),er));var ks=[];[ukey(sess.name),sess.login].forEach(function(k){if(k&&ks.indexOf(k)<0)ks.push(k)});ks.forEach(function(k){zU.push(db.collection("zlecenia").where("crewKeys","array-contains",k).onSnapshot(ordH(),er))});
-zU.push(db.collection("teams").onSnapshot(function(sn){var on=false;sn.docs.forEach(function(d){var t=d.data()||{},c=t.crew||{};if(t.uid===uidC||ks.indexOf(ukey(c.pilot))>=0||ks.indexOf(ukey(c.rat))>=0||ks.indexOf(ukey(c.lek))>=0)on=true});if(on!==crewOn){crewOn=on;refreshNav()}},er))}}
+zU.push(db.collection("teams").onSnapshot(function(sn){var on=false;liveTeams=[];sn.docs.forEach(function(d){var t=d.data()||{},c=t.crew||{};if(t.uid)liveTeams.push(t);if(t.uid===uidC||ks.indexOf(ukey(c.pilot))>=0||ks.indexOf(ukey(c.rat))>=0||ks.indexOf(ukey(c.lek))>=0)on=true});if(on!==crewOn){crewOn=on;refreshNav()}syncDuty(liveTeams);dzSig()},er))}}
 function drawZNav(){var l=document.querySelector('#nav a[href="#zlecenia"]');if(!l)return;var n=0;if(sess&&!canSend())Object.keys(orders).forEach(function(k){if(orders[k].status==="Nowe")n++});l.innerHTML="Zlecenia"+(n?' <span class="rq">● '+n+"</span>":"")}
 var SC={"Nowe":"var(--wa)","Przyjęte":"var(--ok)","Zrealizowane":"var(--mu)","Odrzucone":"var(--re)","Anulowane":"var(--mu)"};
 function ordCard(o,open){var c=o.card||{},snd=canSend(),h='<details class="card dd" data-id="'+esc(o.id)+'"'+(open?" open":"")+"><summary><b>"+dt(o.ts)+"</b> · "+esc(c.typ)+" · "+esc(c.p_miasto)+" → "+esc(c.d_miasto)+" · zespół: "+esc(o.teamName)+' · <b style="color:'+(SC[o.status]||"var(--tx)")+'">'+esc(o.status)+"</b></summary>"
