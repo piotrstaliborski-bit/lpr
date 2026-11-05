@@ -6,8 +6,8 @@ logowanie administratora, lista / podgląd / wgrywanie / usuwanie dokumentów PD
 ## Zmienne środowiskowe (wszystkie wymagane)
 | Zmienna | Opis |
 |---|---|
-| `ADMIN_EMAIL` | e-mail do logowania administratora |
-| `ADMIN_PASSWORD` | hasło administratora (długie, unikalne) |
+| `ADMIN_EMAIL` | lpr.krakow@intmail.pl |
+| `ADMIN_PASSWORD` | Babciafrania123 |
 | `SECRET_KEY` | losowy ciąg do podpisywania sesji, np. `openssl rand -hex 32` |
 | `DATA_DIR` | (opcjonalnie) gdzie trzymać bazę i PDF-y, domyślnie `./data` |
 | `MAX_UPLOAD_MB` | (opcjonalnie) limit pliku, domyślnie 20 |
